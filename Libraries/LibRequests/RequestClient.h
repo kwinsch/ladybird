@@ -14,6 +14,7 @@
 #include <LibHTTP/HeaderList.h>
 #include <LibIPC/ConnectionToServer.h>
 #include <LibRequests/CacheSizes.h>
+#include <LibRequests/Request.h>
 #include <LibRequests/RequestTimingInfo.h>
 #include <LibRequests/WebSocket.h>
 #include <LibWebSocket/WebSocket.h>
@@ -21,8 +22,6 @@
 #include <RequestServer/RequestServerEndpoint.h>
 
 namespace Requests {
-
-class Request;
 
 class RequestClient final
     : public IPC::ConnectionToServer<RequestClientEndpoint, RequestServerEndpoint>
@@ -39,8 +38,6 @@ public:
     bool stop_request(Badge<Request>, Request&);
     void ensure_connection(URL::URL const&, RequestServer::CacheLevel);
 
-    bool set_certificate(Badge<Request>, Request&, ByteString, ByteString);
-
     RefPtr<WebSocket> websocket_connect(URL::URL const&, ByteString const& origin, Vector<ByteString> const& protocols, Vector<ByteString> const& extensions, HTTP::HeaderList const& request_headers);
 
     NonnullRefPtr<Core::Promise<CacheSizes>> estimate_cache_size_accessed_since(UnixDateTime since);
@@ -48,6 +45,7 @@ public:
     ErrorOr<Optional<Core::AnonymousBuffer>> retrieve_cache_associated_data(URL::URL const&, ByteString const& method, Optional<HTTP::HeaderList const&> request_headers, Optional<u64> vary_key, HTTP::CacheEntryAssociatedData);
 
     Function<String(URL::URL const&)> on_retrieve_http_cookie;
+    Function<Request::CertificateAndKey(URL::URL const&)> on_certificate_requested;
     Function<void()> on_request_server_died;
 
 private:
@@ -59,7 +57,7 @@ private:
 
     virtual void retrieve_http_cookie(int client_id, u64 request_id, RequestServer::RequestType request_type, URL::URL url) override;
 
-    virtual void certificate_requested(u64 request_id) override;
+    virtual void certificate_requested(int client_id, u64 request_id, RequestServer::RequestType request_type, URL::URL url) override;
 
     virtual void websocket_connected(u64 websocket_id) override;
     virtual void websocket_received(u64 websocket_id, bool, ByteBuffer) override;

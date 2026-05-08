@@ -25,7 +25,7 @@ endpoint RequestClient
     websocket_certificate_requested(u64 websocket_id) =|
 
     // Certificate requests
-    certificate_requested(u64 request_id) =|
+    certificate_requested(int client_id, u64 request_id, ::RequestServer::RequestType request_type, URL::URL url) =|
 
     estimated_cache_size(u64 cache_size_estimation_id, Requests::CacheSizes sizes) =|
 }

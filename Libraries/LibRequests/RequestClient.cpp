@@ -93,13 +93,6 @@ void RequestClient::ensure_connection(URL::URL const& url, RequestServer::CacheL
     async_ensure_connection(request_id, url, cache_level);
 }
 
-bool RequestClient::set_certificate(Badge<Request>, Request& request, ByteString certificate, ByteString key)
-{
-    if (!m_requests.contains(request.id()))
-        return false;
-    return IPCProxy::set_certificate(request.id(), move(certificate), move(key));
-}
-
 NonnullRefPtr<Core::Promise<CacheSizes>> RequestClient::estimate_cache_size_accessed_since(UnixDateTime since)
 {
     auto promise = Core::Promise<CacheSizes>::construct();
@@ -156,10 +149,14 @@ void RequestClient::retrieve_http_cookie(int client_id, u64 request_id, RequestS
     async_retrieved_http_cookie(client_id, request_id, request_type, cookie);
 }
 
-void RequestClient::certificate_requested(u64 request_id)
+void RequestClient::certificate_requested(int client_id, u64 request_id, RequestServer::RequestType request_type, URL::URL url)
 {
-    if (auto request = m_requests.get(request_id); request.has_value())
-        (*request)->did_request_certificates({});
+    Request::CertificateAndKey cert_and_key;
+
+    if (on_certificate_requested)
+        cert_and_key = on_certificate_requested(url);
+
+    async_set_certificate(client_id, request_id, request_type, move(cert_and_key.certificate), move(cert_and_key.key));
 }
 
 RefPtr<WebSocket> RequestClient::websocket_connect(URL::URL const& url, ByteString const& origin, Vector<ByteString> const& protocols, Vector<ByteString> const& extensions, HTTP::HeaderList const& request_headers)

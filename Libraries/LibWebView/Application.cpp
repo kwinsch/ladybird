@@ -536,6 +536,11 @@ ErrorOr<void> Application::launch_request_server()
         return cookie;
     };
 
+    m_request_server_client->on_certificate_requested = [](URL::URL const&) -> Requests::Request::CertificateAndKey {
+        // FIXME: Integrate with platform certificate provider (https://github.com/LadybirdBrowser/ladybird/issues/8343).
+        return {};
+    };
+
     m_request_server_client->on_request_server_died = [this]() {
         m_request_server_client = nullptr;
 

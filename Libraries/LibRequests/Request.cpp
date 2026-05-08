@@ -34,7 +34,6 @@ bool Request::stop()
 {
     on_headers_received = nullptr;
     on_finish = nullptr;
-    on_certificate_requested = nullptr;
 
     m_internal_buffered_data = nullptr;
     m_internal_stream_data = nullptr;
@@ -117,16 +116,6 @@ void Request::did_receive_headers(Badge<RequestClient>, NonnullRefPtr<HTTP::Head
 {
     if (on_headers_received)
         on_headers_received(move(response_headers), response_code, reason_phrase, move(javascript_bytecode), javascript_bytecode_cache_vary_key);
-}
-
-void Request::did_request_certificates(Badge<RequestClient>)
-{
-    if (on_certificate_requested) {
-        auto result = on_certificate_requested();
-        if (!m_client->set_certificate({}, *this, result.certificate, result.key)) {
-            dbgln("Request: set_certificate failed");
-        }
-    }
 }
 
 void Request::set_up_internal_stream_data(DataReceived on_data_available)

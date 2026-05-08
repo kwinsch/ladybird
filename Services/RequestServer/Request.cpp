@@ -163,6 +163,8 @@ struct WireStats {
     Optional<MonotonicTime> dns_completed_at;
     Optional<MonotonicTime> cookie_started_at;
     Optional<MonotonicTime> cookie_completed_at;
+    Optional<MonotonicTime> cert_started_at;
+    Optional<MonotonicTime> cert_completed_at;
     Optional<MonotonicTime> curl_added_at;
     Optional<MonotonicTime> complete_observed_at;
 
@@ -308,10 +310,14 @@ static void log_chunk_stats(Request const* request)
         auto our_dns_ms = delta_ms(s.dns_started_at, s.dns_completed_at);
         // Cookie IPC round-trip to the UI process.
         auto cookie_ms = delta_ms(s.cookie_started_at, s.cookie_completed_at);
+        // Client certificate IPC round-trip to the UI process.
+        auto cert_ms = delta_ms(s.cert_started_at, s.cert_completed_at);
         // Time from the last completed pre-network step to curl_multi_add_handle.
         auto curl_setup_ms = [&]() -> i64 {
             Optional<MonotonicTime> last_pre_curl;
-            if (s.cookie_completed_at.has_value())
+            if (s.cert_completed_at.has_value())
+                last_pre_curl = s.cert_completed_at;
+            else if (s.cookie_completed_at.has_value())
                 last_pre_curl = s.cookie_completed_at;
             else if (s.dns_completed_at.has_value())
                 last_pre_curl = s.dns_completed_at;
@@ -343,9 +349,9 @@ static void log_chunk_stats(Request const* request)
                 s.max_buffered_bytes);
         }
 
-        dbgln_if(REQUESTSERVER_WIRE_DEBUG, "RequestServer wire^:  internal pre-curl={} ms = cache+init {} + our-dns {} + cookie {} + curl-setup {} | drain delay {} ms{}",
+        dbgln_if(REQUESTSERVER_WIRE_DEBUG, "RequestServer wire^:  internal pre-curl={} ms = cache+init {} + our-dns {} + cookie {} + cert {} + curl-setup {} | drain delay {} ms{}",
             fmt_ms(pre_curl_total_ms), fmt_ms(pre_dns_ms), fmt_ms(our_dns_ms),
-            fmt_ms(cookie_ms), fmt_ms(curl_setup_ms), fmt_ms(drain_delay_ms),
+            fmt_ms(cookie_ms), fmt_ms(cert_ms), fmt_ms(curl_setup_ms), fmt_ms(drain_delay_ms),
             back_pressure_summary);
     }
 }
@@ -508,6 +514,12 @@ void Request::notify_retrieved_http_cookie(Badge<ConnectionFromClient>, StringVi
         m_request_headers->append(move(header));
     }
 
+    transition_to_state(State::RequestClientCertificate);
+}
+
+void Request::notify_certificate_received(Badge<ConnectionFromClient>)
+{
+    mark_lifecycle_event(this, &WireStats::cert_completed_at);
     transition_to_state(State::Fetch);
 }
 
@@ -582,6 +594,9 @@ void Request::process()
         break;
     case State::RetrieveCookie:
         handle_retrieve_cookie_state();
+        break;
+    case State::RequestClientCertificate:
+        handle_request_client_certificate_state();
         break;
     case State::Connect:
         handle_connect_state();
@@ -815,7 +830,7 @@ void Request::handle_dns_lookup_state()
 void Request::handle_retrieve_cookie_state()
 {
     if (m_include_credentials == HTTP::Cookie::IncludeCredentials::No) {
-        transition_to_state(State::Fetch);
+        transition_to_state(State::RequestClientCertificate);
         return;
     }
 
@@ -825,6 +840,24 @@ void Request::handle_retrieve_cookie_state()
     } else {
         m_network_error = Requests::NetworkError::RequestServerDied;
         transition_to_state(State::Error);
+    }
+}
+
+void Request::handle_request_client_certificate_state()
+{
+    if (m_url.scheme() != "https"sv) {
+        transition_to_state(State::Fetch);
+        return;
+    }
+
+    if (auto connection = ConnectionFromClient::primary_connection(); connection.has_value()) {
+        mark_lifecycle_event(this, &WireStats::cert_started_at);
+        connection->async_certificate_requested(m_client.client_id(), m_request_id, m_type, m_url);
+    } else {
+        // No primary connection: proceed without certificate rather than failing.
+        // If the server requires a client certificate, the TLS handshake will fail
+        // naturally via cURL.
+        transition_to_state(State::Fetch);
     }
 }
 

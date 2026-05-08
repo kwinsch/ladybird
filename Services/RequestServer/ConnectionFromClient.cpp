@@ -403,16 +403,28 @@ Messages::RequestServer::StopRequestResponse ConnectionFromClient::stop_request(
     return true;
 }
 
-Messages::RequestServer::SetCertificateResponse ConnectionFromClient::set_certificate(u64 request_id, ByteString certificate, ByteString key)
+void ConnectionFromClient::set_certificate(int client_id, u64 request_id, RequestServer::RequestType request_type, ByteString certificate, ByteString key)
 {
-    auto request = m_active_requests.get(request_id);
-    if (!request.has_value()) {
-        dbgln("SetCertificate: Request ID {} not found", request_id);
-        return false;
-    }
+    note_event_tick("ipc-set-certificate"sv);
+    if (auto connection = m_connections.get(client_id); connection.has_value()) {
+        auto request = [&]() {
+            switch (request_type) {
+            case RequestType::Fetch:
+                return (*connection)->m_active_requests.get(request_id);
+            case RequestType::BackgroundRevalidation:
+                return (*connection)->m_active_revalidation_requests.get(request_id);
+            case RequestType::Connect:
+                break;
+            }
+            VERIFY_NOT_REACHED();
+        }();
 
-    (*request)->set_client_certificate({}, move(certificate), move(key));
-    return true;
+        if (request.has_value()) {
+            if (!certificate.is_empty())
+                (*request)->set_client_certificate({}, move(certificate), move(key));
+            (*request)->notify_certificate_received({});
+        }
+    }
 }
 
 void ConnectionFromClient::ensure_connection(u64 request_id, URL::URL url, ::RequestServer::CacheLevel cache_level)

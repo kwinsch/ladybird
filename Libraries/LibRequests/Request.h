@@ -75,11 +75,8 @@ public:
     // mutually exclusive with `set_buffered_request_finished_callback`.
     void set_unbuffered_request_callbacks(HeadersReceived, DataReceived, RequestFinished);
 
-    Function<CertificateAndKey()> on_certificate_requested;
-
     void did_finish(Badge<RequestClient>, u64 total_size, RequestTimingInfo const& timing_info, Optional<NetworkError> const& network_error);
     void did_receive_headers(Badge<RequestClient>, NonnullRefPtr<HTTP::HeaderList> response_headers, Optional<u32> response_code, Optional<String> const& reason_phrase, Optional<Core::AnonymousBuffer> javascript_bytecode, Optional<u64> javascript_bytecode_cache_vary_key);
-    void did_request_certificates(Badge<RequestClient>);
 
     RefPtr<Core::Notifier>& write_notifier(Badge<RequestClient>) { return m_write_notifier; }
     void set_request_fd(Badge<RequestClient>, int fd);

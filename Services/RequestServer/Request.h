@@ -76,6 +76,7 @@ public:
 
     virtual void notify_request_unblocked(Badge<HTTP::DiskCache>) override;
     void notify_retrieved_http_cookie(Badge<ConnectionFromClient>, StringView cookie);
+    void notify_certificate_received(Badge<ConnectionFromClient>);
     void notify_fetch_complete(Badge<ConnectionFromClient>, int result_code);
     void set_client_certificate(Badge<ConnectionFromClient>, ByteString certificate, ByteString key);
 
@@ -87,8 +88,9 @@ private:
         FailedCacheOnly,   // An only-if-cached request failed to find a cache entry.
         ServeSubstitution, // Serve content from a local file substitution.
         DNSLookup,         // Resolve the URL's host.
-        RetrieveCookie,    // Retrieve cookies from the UI process.
-        Connect,           // Issue a network request to connect to the URL.
+        RetrieveCookie,            // Retrieve cookies from the UI process.
+        RequestClientCertificate,  // Retrieve client certificate from the UI process.
+        Connect,                   // Issue a network request to connect to the URL.
         Fetch,             // Issue a network request to fetch the URL.
         Complete,          // Finalize the request with the client.
         Error,             // Any error occured during the request's lifetime.
@@ -111,6 +113,8 @@ private:
             return "DNSLookup"sv;
         case State::RetrieveCookie:
             return "RetrieveCookie"sv;
+        case State::RequestClientCertificate:
+            return "RequestClientCertificate"sv;
         case State::Connect:
             return "Connect"sv;
         case State::Fetch:
@@ -155,6 +159,7 @@ private:
     void handle_serve_substitution_state();
     void handle_dns_lookup_state();
     void handle_retrieve_cookie_state();
+    void handle_request_client_certificate_state();
     void handle_connect_state();
     void handle_fetch_state();
     void handle_complete_state();
