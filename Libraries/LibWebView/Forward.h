@@ -15,6 +15,8 @@ namespace WebView {
 class Action;
 class Application;
 class Autocomplete;
+class ClientCertificateChain;
+class ClientCertificateProvider;
 class BookmarkStore;
 class CookieJar;
 class HistoryStore;
@@ -28,6 +30,7 @@ class WebUI;
 
 struct Attribute;
 struct AutocompleteEngine;
+struct ClientCertificateResult;
 struct BookmarkItem;
 struct BrowserOptions;
 struct ConsoleOutput;

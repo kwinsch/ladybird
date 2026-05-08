@@ -2,6 +2,8 @@ set(SOURCES
     Application.cpp
     Attribute.cpp
     Autocomplete.cpp
+    CLIClientCertificateProvider.cpp
+    ClientCertificateChain.cpp
     BookmarkStore.cpp
     BrowserProcess.cpp
     ConsoleOutput.cpp
