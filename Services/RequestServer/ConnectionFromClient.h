@@ -57,6 +57,7 @@ private:
     virtual Messages::RequestServer::IsSupportedProtocolResponse is_supported_protocol(ByteString) override;
     virtual void set_dns_server(ByteString host_or_address, u16 port, bool use_tls, bool validate_dnssec_locally) override;
     virtual void set_use_system_dns() override;
+    virtual void set_has_certificate_provider(bool has_provider) override;
     virtual void start_request(u64 request_id, ByteString, URL::URL, Vector<HTTP::Header>, ByteBuffer, HTTP::CacheMode, HTTP::Cookie::IncludeCredentials, Core::ProxyData) override;
     virtual Messages::RequestServer::StopRequestResponse stop_request(u64 request_id) override;
     virtual void set_certificate(int client_id, u64 request_id, RequestServer::RequestType request_type, ByteString certificate, ByteString key) override;

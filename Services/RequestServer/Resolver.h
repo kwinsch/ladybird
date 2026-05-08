@@ -28,6 +28,15 @@ private:
     DNSInfo() = default;
 };
 
+struct ClientCertificateInfo {
+    static ClientCertificateInfo& the();
+
+    bool has_provider { false };
+
+private:
+    ClientCertificateInfo() = default;
+};
+
 struct Resolver
     : public RefCounted<Resolver>
     , public Weakable<Resolver> {

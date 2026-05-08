@@ -258,6 +258,13 @@ void ConnectionFromClient::set_use_system_dns()
     m_resolver->dns.reset_connection();
 }
 
+void ConnectionFromClient::set_has_certificate_provider(bool has_provider)
+{
+    if (g_primary_connection != this)
+        return;
+    ClientCertificateInfo::the().has_provider = has_provider;
+}
+
 void ConnectionFromClient::start_request(u64 request_id, ByteString method, URL::URL url, Vector<HTTP::Header> request_headers, ByteBuffer request_body, HTTP::CacheMode cache_mode, HTTP::Cookie::IncludeCredentials include_credentials, Core::ProxyData proxy_data)
 {
     note_event_tick("ipc-start-request"sv);
@@ -405,6 +412,8 @@ Messages::RequestServer::StopRequestResponse ConnectionFromClient::stop_request(
 
 void ConnectionFromClient::set_certificate(int client_id, u64 request_id, RequestServer::RequestType request_type, ByteString certificate, ByteString key)
 {
+    if (g_primary_connection != this)
+        return;
     note_event_tick("ipc-set-certificate"sv);
     if (auto connection = m_connections.get(client_id); connection.has_value()) {
         auto request = [&]() {

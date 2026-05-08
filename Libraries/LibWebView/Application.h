@@ -27,6 +27,7 @@
 #include <LibWeb/HTML/ActivateTab.h>
 #include <LibWebView/BookmarkStore.h>
 #include <LibWebView/FileDownloader.h>
+#include <LibWebView/ClientCertificateChain.h>
 #include <LibWebView/Forward.h>
 #include <LibWebView/Options.h>
 #include <LibWebView/Process.h>
@@ -209,6 +210,7 @@ private:
     ErrorOr<void> launch_devtools_server();
 
     void initialize_actions();
+    void initialize_certificate_chain();
 
     void update_bookmarks_bar_action();
 
@@ -271,6 +273,7 @@ private:
     WebContentOptions m_web_content_options;
 
     RefPtr<Requests::RequestClient> m_request_server_client;
+    OwnPtr<ClientCertificateChain> m_certificate_chain;
     RefPtr<ImageDecoderClient::Client> m_image_decoder_client;
 
     RefPtr<WebContentClient> m_spare_web_content_process;

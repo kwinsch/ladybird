@@ -845,7 +845,7 @@ void Request::handle_retrieve_cookie_state()
 
 void Request::handle_request_client_certificate_state()
 {
-    if (m_url.scheme() != "https"sv) {
+    if (m_url.scheme() != "https"sv || !ClientCertificateInfo::the().has_provider) {
         transition_to_state(State::Fetch);
         return;
     }

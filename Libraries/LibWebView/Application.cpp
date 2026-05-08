@@ -8,6 +8,7 @@
 #include <AK/Time.h>
 #include <LibCore/ArgsParser.h>
 #include <LibCore/Environment.h>
+#include <LibCore/File.h>
 #include <LibCore/StandardPaths.h>
 #include <LibCore/System.h>
 #include <LibCore/TimeZoneWatcher.h>
@@ -18,6 +19,8 @@
 #include <LibWeb/CSS/PropertyID.h>
 #include <LibWeb/Loader/UserAgent.h>
 #include <LibWebView/Application.h>
+#include <LibWebView/CLIClientCertificateProvider.h>
+#include <LibWebView/ClientCertificateChain.h>
 #include <LibWebView/CookieJar.h>
 #include <LibWebView/HeadlessWebView.h>
 #include <LibWebView/HelperProcess.h>
@@ -131,6 +134,7 @@ ErrorOr<void> Application::initialize(Main::Arguments const& arguments)
 
     Vector<ByteString> raw_urls;
     Vector<ByteString> certificates;
+    Vector<ByteString> client_certificates;
     Optional<HeadlessMode> headless_mode;
     Optional<int> window_width;
     Optional<int> window_height;
@@ -198,6 +202,21 @@ ErrorOr<void> Application::initialize(Main::Arguments const& arguments)
     args_parser.add_option(window_width, "Set viewport width in pixels (default: 800) (currently only supported for headless mode)", "window-width", 0, "pixels");
     args_parser.add_option(window_height, "Set viewport height in pixels (default: 600) (currently only supported for headless mode)", "window-height", 0, "pixels");
     args_parser.add_option(certificates, "Path to a certificate file", "certificate", 'C', "certificate");
+    args_parser.add_option(Core::ArgsParser::Option {
+        .argument_mode = Core::ArgsParser::OptionArgumentMode::Required,
+        .help_string = "Provide a client certificate for mTLS (host:cert.pem:key.pem, use * for any host)",
+        .long_name = "client-certificate",
+        .value_name = "host:cert:key",
+        .accept_value = [&](StringView value) {
+            auto parts = value.split_view(':');
+            if (parts.size() != 3)
+                return false;
+            if (parts[0].is_empty() || parts[1].is_empty() || parts[2].is_empty())
+                return false;
+            client_certificates.append(ByteString(value));
+            return true;
+        },
+    });
     args_parser.add_option(new_window, "Force opening in a new window", "new-window", 'n');
     args_parser.add_option(force_new_process, "Force creation of a new browser process", "force-new-process");
     args_parser.add_option(allow_popups, "Disable popup blocking by default", "allow-popups");
@@ -310,6 +329,7 @@ ErrorOr<void> Application::initialize(Main::Arguments const& arguments)
     m_browser_options = {
         .urls = sanitize_urls(raw_urls),
         .raw_urls = move(raw_urls),
+        .client_certificates = move(client_certificates),
         .headless_mode = headless_mode,
         .new_window = new_window ? NewWindow::Yes : NewWindow::No,
         .force_new_process = force_new_process ? ForceNewProcess::Yes : ForceNewProcess::No,
@@ -381,6 +401,7 @@ ErrorOr<void> Application::initialize(Main::Arguments const& arguments)
         URL::set_file_scheme_urls_have_tuple_origins();
 
     initialize_actions();
+    initialize_certificate_chain();
 
     m_event_loop = create_platform_event_loop();
     TRY(launch_services());
@@ -519,6 +540,59 @@ ErrorOr<void> Application::launch_services()
     return {};
 }
 
+void Application::initialize_certificate_chain()
+{
+    m_certificate_chain = make<ClientCertificateChain>();
+
+    if (m_browser_options.client_certificates.is_empty())
+        return;
+
+    Vector<CLIClientCertificateProvider::HostCertificate> host_certs;
+
+    for (auto const& spec : m_browser_options.client_certificates) {
+        auto parts = spec.view().split_view(':');
+        VERIFY(parts.size() == 3);
+
+        auto host = parts[0];
+        auto cert_path = parts[1];
+        auto key_path = parts[2];
+
+        auto cert_file = Core::File::open(cert_path, Core::File::OpenMode::Read);
+        if (cert_file.is_error()) {
+            warnln("Failed to open client certificate file '{}': {}", cert_path, cert_file.error());
+            continue;
+        }
+        auto cert_data = cert_file.value()->read_until_eof();
+        if (cert_data.is_error()) {
+            warnln("Failed to read client certificate file '{}': {}", cert_path, cert_data.error());
+            continue;
+        }
+
+        auto key_file = Core::File::open(key_path, Core::File::OpenMode::Read);
+        if (key_file.is_error()) {
+            warnln("Failed to open client key file '{}': {}", key_path, key_file.error());
+            continue;
+        }
+        auto key_data = key_file.value()->read_until_eof();
+        if (key_data.is_error()) {
+            warnln("Failed to read client key file '{}': {}", key_path, key_data.error());
+            continue;
+        }
+
+        host_certs.append({
+            .host_pattern = ByteString(host),
+            .certificate = ByteString { cert_data.value().bytes() },
+            .key = ByteString { key_data.value().bytes() },
+        });
+    }
+
+    if (!host_certs.is_empty()) {
+        auto provider = CLIClientCertificateProvider::create(move(host_certs));
+        if (!provider.is_error())
+            m_certificate_chain->add_provider(provider.release_value());
+    }
+}
+
 ErrorOr<void> Application::launch_request_server()
 {
     m_request_server_client = TRY(launch_request_server_process());
@@ -536,10 +610,12 @@ ErrorOr<void> Application::launch_request_server()
         return cookie;
     };
 
-    m_request_server_client->on_certificate_requested = [](URL::URL const&) -> Requests::Request::CertificateAndKey {
-        // FIXME: Integrate with platform certificate provider (https://github.com/LadybirdBrowser/ladybird/issues/8343).
-        return {};
+    m_request_server_client->on_certificate_requested = [this](URL::URL const& url) -> Requests::Request::CertificateAndKey {
+        return m_certificate_chain->query(url);
     };
+
+    if (m_certificate_chain->has_providers())
+        m_request_server_client->async_set_has_certificate_provider(true);
 
     m_request_server_client->on_request_server_died = [this]() {
         m_request_server_client = nullptr;

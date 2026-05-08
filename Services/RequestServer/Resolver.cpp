@@ -22,6 +22,12 @@ void set_default_certificate_path(ByteString default_certificate_path)
     g_default_certificate_path = move(default_certificate_path);
 }
 
+ClientCertificateInfo& ClientCertificateInfo::the()
+{
+    static ClientCertificateInfo g_client_certificate_info;
+    return g_client_certificate_info;
+}
+
 DNSInfo& DNSInfo::the()
 {
     static DNSInfo g_dns_info;
