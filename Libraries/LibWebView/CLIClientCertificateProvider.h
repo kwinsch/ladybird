@@ -9,10 +9,11 @@
 #include <AK/ByteString.h>
 #include <AK/Vector.h>
 #include <LibWebView/ClientCertificateProvider.h>
+#include <LibWebView/Export.h>
 
 namespace WebView {
 
-class CLIClientCertificateProvider final : public ClientCertificateProvider {
+class WEBVIEW_API CLIClientCertificateProvider final : public ClientCertificateProvider {
 public:
     struct HostCertificate {
         ByteString host_pattern;

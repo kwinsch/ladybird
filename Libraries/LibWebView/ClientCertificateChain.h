@@ -13,10 +13,11 @@
 #include <LibRequests/Request.h>
 #include <LibURL/URL.h>
 #include <LibWebView/ClientCertificateProvider.h>
+#include <LibWebView/Export.h>
 
 namespace WebView {
 
-class ClientCertificateChain {
+class WEBVIEW_API ClientCertificateChain {
 public:
     ClientCertificateChain() = default;
 

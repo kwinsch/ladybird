@@ -1,4 +1,5 @@
 set(TEST_SOURCES
+    TestClientCertificateProvider.cpp
     TestHistoryStore.cpp
     TestWebViewURL.cpp
 )
